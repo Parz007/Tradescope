@@ -5,8 +5,8 @@ import { usersTable } from "@workspace/db";
 
 const BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
 const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
-const VERCEL_URL = process.env["VERCEL_URL"] ? `https://${process.env["VERCEL_URL"]}` : null;
-const MINIAPP_URL = process.env["MINIAPP_URL"] ?? VERCEL_URL ?? "https://tradescope-henna.vercel.app";
+const VERCEL_PROD_URL = process.env["VERCEL_PROJECT_PRODUCTION_URL"] ? `https://${process.env["VERCEL_PROJECT_PRODUCTION_URL"]}` : null;
+const MINIAPP_URL = process.env["MINIAPP_URL"] ?? VERCEL_PROD_URL ?? "https://tradescope-henna.vercel.app";
 const CHANNEL_URL = "https://t.me/Trade_Scope_Channel";
 
 const TIPS = [
@@ -231,7 +231,6 @@ export async function sendDailyBriefings(): Promise<{ sent: number; failed: numb
     const ok = await sendMessage(user.telegramId, msg);
     if (ok) sent++;
     else failed++;
-    // Small delay to avoid Telegram rate limits (30 msgs/sec limit)
     await new Promise((r) => setTimeout(r, 50));
   }
 
