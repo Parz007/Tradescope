@@ -128,7 +128,6 @@ function ResultsScreen({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 p-4">
-      {/* Submitted chart preview */}
       {chartImageUrl && (
         <div className="rounded-xl overflow-hidden border border-[#1E2736]">
           <p className="text-[#64748B] text-xs px-3 pt-2 pb-1 uppercase tracking-wider font-medium">Submitted Chart</p>
@@ -140,7 +139,6 @@ function ResultsScreen({
         </div>
       )}
 
-      {/* Score */}
       <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-6 flex flex-col items-center gap-3">
         <ScoreRing score={result.overallScore} color={color} />
         <p className="font-display font-bold text-lg text-center" style={{ color }}>
@@ -148,7 +146,6 @@ function ResultsScreen({
         </p>
       </div>
 
-      {/* Alerts */}
       {result.revengeTradeWarning && (
         <div className="rounded-xl border border-[#F59E0B]/40 bg-[#F59E0B]/10 p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
@@ -171,7 +168,6 @@ function ResultsScreen({
         </div>
       )}
 
-      {/* Confluence */}
       <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4 space-y-3">
         <p className="font-display font-semibold text-[#F1F5F9]">Confluence Breakdown</p>
         {Object.entries(confluence).map(([key, val], i) => (
@@ -181,7 +177,6 @@ function ResultsScreen({
         ))}
       </div>
 
-      {/* Key Findings */}
       <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4 space-y-3">
         <p className="font-display font-semibold text-[#F1F5F9]">Key Findings</p>
         {(result.positives as string[]).map((p, i) => (
@@ -204,13 +199,11 @@ function ResultsScreen({
         ))}
       </div>
 
-      {/* Verdict */}
       <div className="rounded-xl bg-[#0D1117] border-l-4 border border-[#3B82F6] pl-4 p-4">
         <p className="font-display font-semibold text-[#F1F5F9] mb-2">AI Verdict</p>
         <p className="text-[#F1F5F9] text-sm leading-relaxed">{result.verdict}</p>
       </div>
 
-      {/* Devil's Advocate */}
       <div className="rounded-xl bg-[#EF4444]/5 border border-[#EF4444]/20 p-4">
         <p className="font-display font-semibold text-[#EF4444] mb-2">Devil's Advocate</p>
         <p className="text-[#64748B] text-xs mb-2">Here's why this trade could fail:</p>
@@ -222,7 +215,6 @@ function ResultsScreen({
         ))}
       </div>
 
-      {/* Recommended Actions */}
       <div className="rounded-xl bg-[#3B82F6]/5 border border-[#3B82F6]/20 p-4">
         <p className="font-display font-semibold text-[#3B82F6] mb-2">Recommended Actions</p>
         {(result.recommendations as string[]).map((r, i) => (
@@ -239,7 +231,6 @@ function ResultsScreen({
         )}
       </div>
 
-      {/* Buttons */}
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={onReset}
@@ -317,10 +308,8 @@ export default function Analyze() {
   const [isLoading, setIsLoading] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"form" | "chart">("form");
 
-  // Step 0: Emotion
   const [emotionScore, setEmotionScore] = useState(7);
 
-  // Form mode state
   const [pair, setPair] = useState("EUR/USD");
   const [direction, setDirection] = useState<"buy" | "sell">("buy");
   const [timeframe, setTimeframe] = useState<TradeInputTimeframe>(TradeInputTimeframe.H1);
@@ -335,8 +324,11 @@ export default function Analyze() {
   const [keyLevelsDesc, setKeyLevelsDesc] = useState("");
   const [formError, setFormError] = useState("");
 
-  // Chart mode state
-  const [chartFile, setChartFile] = useState<File | null>(null);
+  // Chart mode state — base64 is read immediately on file select to avoid
+  // iOS/Safari "file could not be read" errors when reading a stale File ref later
+  const [chartBase64, setChartBase64] = useState<string | null>(null);
+  const [chartMimeType, setChartMimeType] = useState<string>("image/jpeg");
+  const [chartFileName, setChartFileName] = useState<string | null>(null);
   const [chartPreview, setChartPreview] = useState<string | null>(null);
   const [chartNotes, setChartNotes] = useState("");
   const [chartError, setChartError] = useState("");
@@ -344,7 +336,6 @@ export default function Analyze() {
 
   const reasoningRef = useRef<HTMLTextAreaElement>(null);
 
-  // Computed
   const entry = parseFloat(entryPrice);
   const sl = parseFloat(stopLoss);
   const tp = parseFloat(takeProfit);
@@ -383,10 +374,19 @@ export default function Analyze() {
       setChartError("Image must be under 8MB");
       return;
     }
-    setChartFile(file);
     setChartError("");
-    const url = URL.createObjectURL(file);
-    setChartPreview(url);
+    setChartFileName(file.name);
+    setChartMimeType(file.type);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setChartPreview(dataUrl);
+      setChartBase64(dataUrl.split(",")[1]);
+    };
+    reader.onerror = () => {
+      setChartError("Failed to read image. Please try again.");
+    };
+    reader.readAsDataURL(file);
   }
 
   async function handleFormSubmit() {
@@ -433,18 +433,12 @@ export default function Analyze() {
   }
 
   async function handleChartSubmit() {
-    if (!chartFile) { setChartError("Please upload a chart image first"); return; }
+    if (!chartBase64) { setChartError("Please upload a chart image first"); return; }
     setIsLoading(true);
     setCurrentStep(2);
 
     const startTime = Date.now();
     try {
-      const arrayBuffer = await chartFile.arrayBuffer();
-      const uint8 = new Uint8Array(arrayBuffer);
-      let binary = "";
-      uint8.forEach((b) => { binary += String.fromCharCode(b); });
-      const base64 = btoa(binary);
-
       const upcomingNews = newsEvents?.filter((n) => (n.minutesAway ?? 0) >= 0 && (n.minutesAway ?? 999) <= 240).slice(0, 5) ?? [];
 
       const res = await fetch("/api/analyze/chart", {
@@ -452,8 +446,8 @@ export default function Analyze() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user?.id ?? "demo",
-          imageBase64: base64,
-          mimeType: chartFile.type,
+          imageBase64: chartBase64,
+          mimeType: chartMimeType,
           emotionScore,
           notes: chartNotes.trim() || null,
           newsEvents: upcomingNews,
@@ -490,8 +484,8 @@ export default function Analyze() {
     setReasoning(""); setHtfBias("Not Checked");
     setKeyLevels(false); setKeyLevelsDesc("");
     setFormError("");
-    setChartFile(null);
-    if (chartPreview) URL.revokeObjectURL(chartPreview);
+    setChartBase64(null);
+    setChartFileName(null);
     setChartPreview(null);
     setChartNotes(""); setChartError("");
   }
@@ -506,7 +500,6 @@ export default function Analyze() {
     />
   );
 
-  // Step 0: Emotion Gate
   if (currentStep === 0) return (
     <div className="flex flex-col min-h-[80vh] p-6 gap-6">
       <button
@@ -517,59 +510,57 @@ export default function Analyze() {
         <span className="text-sm">Back</span>
       </button>
       <div className="flex-1 flex flex-col justify-center gap-6">
-      <div className="text-center">
-        <h2 className="font-display text-2xl font-bold text-[#F1F5F9]">Before You Trade</h2>
-        <p className="text-[#64748B] mt-2">Your mindset matters as much as your analysis</p>
-      </div>
-      <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-6 space-y-6">
         <div className="text-center">
-          <p className="text-[#F1F5F9] font-semibold mb-1">How are you feeling right now?</p>
-          <p className="font-display font-bold text-4xl" style={{ color: emotionColor }}>{emotionScore}/10</p>
-          <p className="text-sm mt-1" style={{ color: emotionColor }}>{emotionLabel}</p>
+          <h2 className="font-display text-2xl font-bold text-[#F1F5F9]">Before You Trade</h2>
+          <p className="text-[#64748B] mt-2">Your mindset matters as much as your analysis</p>
         </div>
-        <input
-          type="range" min={1} max={10} value={emotionScore}
-          onChange={(e) => setEmotionScore(parseInt(e.target.value))}
-          className="w-full accent-[#F0B429]"
-          style={{ accentColor: emotionColor }}
-        />
-        <div className="flex justify-between text-xs text-[#64748B]">
-          <span>Stressed</span><span>Neutral</span><span>Focused</span>
+        <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-6 space-y-6">
+          <div className="text-center">
+            <p className="text-[#F1F5F9] font-semibold mb-1">How are you feeling right now?</p>
+            <p className="font-display font-bold text-4xl" style={{ color: emotionColor }}>{emotionScore}/10</p>
+            <p className="text-sm mt-1" style={{ color: emotionColor }}>{emotionLabel}</p>
+          </div>
+          <input
+            type="range" min={1} max={10} value={emotionScore}
+            onChange={(e) => setEmotionScore(parseInt(e.target.value))}
+            className="w-full accent-[#F0B429]"
+            style={{ accentColor: emotionColor }}
+          />
+          <div className="flex justify-between text-xs text-[#64748B]">
+            <span>Stressed</span><span>Neutral</span><span>Focused</span>
+          </div>
+          {emotionScore < 5 && (
+            <div className="rounded-lg border border-[#F59E0B]/40 bg-[#F59E0B]/10 p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
+              <p className="text-[#F59E0B] text-sm">Trading while emotional often leads to poor decisions. Consider waiting for a calmer mindset.</p>
+            </div>
+          )}
+          {emotionScore >= 5 && (
+            <div className="rounded-lg border border-[#10B981]/30 bg-[#10B981]/10 p-3 text-center">
+              <p className="text-[#10B981] text-sm font-medium">Looking good! Let's analyse your trade.</p>
+            </div>
+          )}
         </div>
-        {emotionScore < 5 && (
-          <div className="rounded-lg border border-[#F59E0B]/40 bg-[#F59E0B]/10 p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
-            <p className="text-[#F59E0B] text-sm">Trading while emotional often leads to poor decisions. Consider waiting for a calmer mindset.</p>
-          </div>
-        )}
-        {emotionScore >= 5 && (
-          <div className="rounded-lg border border-[#10B981]/30 bg-[#10B981]/10 p-3 text-center">
-            <p className="text-[#10B981] text-sm font-medium">Looking good! Let's analyse your trade.</p>
-          </div>
-        )}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={() => setLocation("/")}
-          className="flex-1 py-3 rounded-[20px] border border-[#1E2736] text-[#64748B] font-semibold active:scale-97 transition-transform"
-        >
-          Come Back Later
-        </button>
-        <button
-          onClick={() => setCurrentStep(1)}
-          className="flex-1 py-3 rounded-[20px] bg-[#F0B429] text-[#080B14] font-bold active:scale-97 transition-transform"
-        >
-          {emotionScore < 5 ? "Continue Anyway" : "Let's Go"}
-        </button>
-      </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setLocation("/")}
+            className="flex-1 py-3 rounded-[20px] border border-[#1E2736] text-[#64748B] font-semibold active:scale-97 transition-transform"
+          >
+            Come Back Later
+          </button>
+          <button
+            onClick={() => setCurrentStep(1)}
+            className="flex-1 py-3 rounded-[20px] bg-[#F0B429] text-[#080B14] font-bold active:scale-97 transition-transform"
+          >
+            {emotionScore < 5 ? "Continue Anyway" : "Let's Go"}
+          </button>
+        </div>
       </div>
     </div>
   );
 
-  // Step 1: Mode Toggle + Input
   return (
     <div className="flex flex-col gap-4 p-4 pt-4">
-      {/* Progress bar */}
       <div className="flex items-center gap-2">
         <button onClick={() => setCurrentStep(0)} className="text-[#64748B] hover:text-[#F1F5F9]">
           <ChevronLeft className="w-5 h-5" />
@@ -581,7 +572,6 @@ export default function Analyze() {
         </div>
       </div>
 
-      {/* Mode toggle */}
       <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-1 flex">
         <button
           onClick={() => { setAnalysisMode("form"); setChartError(""); }}
@@ -600,7 +590,6 @@ export default function Analyze() {
 
       <AnimatePresence mode="wait">
         {analysisMode === "chart" ? (
-          /* ── Chart Mode ── */
           <motion.div
             key="chart-mode"
             initial={{ opacity: 0, x: 20 }}
@@ -614,7 +603,6 @@ export default function Analyze() {
               <p className="text-[#64748B] text-sm mt-1">Upload your chart screenshot and let AI read the setup for you</p>
             </div>
 
-            {/* Upload area */}
             <div
               className={`rounded-xl border-2 border-dashed transition-all cursor-pointer relative overflow-hidden ${
                 chartPreview ? "border-[#F0B429]/40 bg-[#0D1117]" : "border-[#1E2736] bg-[#0D1117] hover:border-[#F0B429]/40"
@@ -637,8 +625,8 @@ export default function Analyze() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setChartFile(null);
-                      URL.revokeObjectURL(chartPreview);
+                      setChartBase64(null);
+                      setChartFileName(null);
                       setChartPreview(null);
                     }}
                     className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/70 flex items-center justify-center text-white hover:bg-black/90"
@@ -647,7 +635,7 @@ export default function Analyze() {
                   </button>
                   <div className="px-3 pb-2 pt-1 flex items-center gap-2">
                     <CheckCircle className="w-3.5 h-3.5 text-[#10B981] shrink-0" />
-                    <p className="text-[#10B981] text-xs">{chartFile?.name}</p>
+                    <p className="text-[#10B981] text-xs">{chartFileName}</p>
                   </div>
                 </div>
               ) : (
@@ -672,7 +660,6 @@ export default function Analyze() {
               }}
             />
 
-            {/* Optional notes */}
             <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4">
               <div className="flex justify-between items-center mb-2">
                 <p className="text-[#F1F5F9] text-sm font-medium">Your thoughts (optional)</p>
@@ -690,19 +677,12 @@ export default function Analyze() {
               </p>
             </div>
 
-            {/* What AI will detect */}
             <div className="rounded-xl bg-[#161B27] border border-[#1E2736] p-4">
               <p className="text-[#64748B] text-xs uppercase tracking-wider font-medium mb-3">AI will auto-detect</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  "Trend direction",
-                  "Chart patterns",
-                  "Key S/R levels",
-                  "Entry zone",
-                  "Stop loss area",
-                  "Take profit targets",
-                  "Market structure",
-                  "Trade quality score",
+                  "Trend direction","Chart patterns","Key S/R levels","Entry zone",
+                  "Stop loss area","Take profit targets","Market structure","Trade quality score",
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#F0B429]" />
@@ -721,15 +701,14 @@ export default function Analyze() {
 
             <button
               onClick={handleChartSubmit}
-              disabled={!chartFile || isLoading}
+              disabled={!chartBase64 || isLoading}
               className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#F0B429] to-[#D97706] text-[#080B14] font-display font-bold text-lg active:scale-97 transition-transform shadow-lg shadow-[#F0B429]/20 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {chartFile ? "Analyse Chart" : "Upload a Chart First"}
+              {chartBase64 ? "Analyse Chart" : "Upload a Chart First"}
             </button>
             <div className="pb-4" />
           </motion.div>
         ) : (
-          /* ── Form Mode ── */
           <motion.div
             key="form-mode"
             initial={{ opacity: 0, x: -20 }}
@@ -740,7 +719,6 @@ export default function Analyze() {
           >
             <h2 className="font-display text-xl font-bold text-[#F1F5F9]">Trade Details</h2>
 
-            {/* Pair & Direction */}
             <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4 space-y-3">
               <p className="text-[#64748B] text-xs uppercase tracking-wider font-medium">Instrument & Direction</p>
               <select
@@ -767,7 +745,6 @@ export default function Analyze() {
               </div>
             </div>
 
-            {/* Timeframe */}
             <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4">
               <p className="text-[#64748B] text-xs uppercase tracking-wider font-medium mb-3">Timeframe</p>
               <div className="flex gap-2 flex-wrap">
@@ -785,7 +762,6 @@ export default function Analyze() {
               </div>
             </div>
 
-            {/* Price Levels */}
             <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4 space-y-3">
               <p className="text-[#64748B] text-xs uppercase tracking-wider font-medium">Price Levels</p>
               {[
@@ -813,7 +789,6 @@ export default function Analyze() {
               )}
             </div>
 
-            {/* Position Size */}
             <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4 space-y-3">
               <p className="text-[#64748B] text-xs uppercase tracking-wider font-medium">Position Size</p>
               <div>
@@ -841,7 +816,6 @@ export default function Analyze() {
               )}
             </div>
 
-            {/* Context */}
             <div className="rounded-xl bg-[#0D1117] border border-[#1E2736] p-4 space-y-3">
               <p className="text-[#64748B] text-xs uppercase tracking-wider font-medium">Trade Context</p>
               <div>
