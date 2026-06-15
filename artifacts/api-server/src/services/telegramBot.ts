@@ -2,12 +2,14 @@ import { logger } from "../lib/logger";
 import { getForexNews } from "./newsService";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
+import { analyzeChartImage } from "./openrouter";
 
 const BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
 const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
-const VERCEL_PROD_URL = process.env["VERCEL_PROJECT_PRODUCTION_URL"] ? `https://${process.env["VERCEL_PROJECT_PRODUCTION_URL"]}` : null;
-const MINIAPP_URL = process.env["MINIAPP_URL"] ?? VERCEL_PROD_URL ?? "https://tradescope-henna.vercel.app";
+const MINIAPP_URL = "https://tradescope-henna.vercel.app";
 const CHANNEL_URL = "https://t.me/Trade_Scope_Channel";
+const ADMIN_CHANNEL_ID = -1003583233840;
+const BOT_USERNAME = "@TradeScopeApp_bot";
 
 const TIPS = [
   "The best trade is often no trade. Patience is a position.",
@@ -27,7 +29,6 @@ const TIPS = [
   "Never move your stop loss wider once in a trade. That is how accounts die.",
 ];
 
-// Track users waiting to submit a support message (resets on redeploy)
 const awaitingSupport = new Set<string>();
 
 function getDailyTip(): string {
@@ -72,7 +73,7 @@ function buildWelcomeText(firstName?: string): string {
     : `👋 Welcome to TradeScope Bot!`;
 
   return [
-    `🔭 <b>Welcome to TradeScope Advanced</b> 👋`,
+    `🔭 <b>Welcome to TradeScope Advanced</b>`,
     ``,
     `Your AI-powered forex trading companion is ready.`,
     ``,
@@ -82,6 +83,7 @@ function buildWelcomeText(firstName?: string): string {
     `🏆 Prop Firm Tracker — FTMO challenge manager`,
     `💼 FTMO Live Accounts — manage funded accounts`,
     `📐 Risk Calculator — precision position sizing`,
+    `📸 Chart Analysis — send a chart to analyze it instantly`,
     ``,
     `<i>The market rewards the prepared. Let's get to work.</i>`,
     ``,
@@ -123,10 +125,7 @@ async function sendMessageWithKeyboard(
   text: string,
   replyMarkup: object,
 ): Promise<boolean> {
-  if (!BOT_TOKEN) {
-    logger.warn("TELEGRAM_BOT_TOKEN not set — skipping sendMessageWithKeyboard");
-    return false;
-  }
+  if (!BOT_TOKEN) return false;
   try {
     const res = await fetch(`${API_BASE}/sendMessage`, {
       method: "POST",
@@ -142,14 +141,33 @@ async function sendMessageWithKeyboard(
     });
     if (!res.ok) {
       const err = await res.text();
-      logger.warn({ chatId, err }, "Telegram sendMessageWithKeyboard failed");
+      logger.warn({ chatId, err }, "sendMessageWithKeyboard failed");
       return false;
     }
     return true;
   } catch (err) {
-    logger.warn({ err, chatId }, "Telegram sendMessageWithKeyboard threw");
+    logger.warn({ err, chatId }, "sendMessageWithKeyboard threw");
     return false;
   }
+}
+
+async function editMessageText(chatId: string, messageId: number, text: string, replyMarkup?: object): Promise<void> {
+  if (!BOT_TOKEN) return;
+  try {
+    await fetch(`${API_BASE}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch { }
 }
 
 async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
@@ -161,9 +179,120 @@ async function answerCallbackQuery(callbackQueryId: string, text?: string): Prom
       body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
       signal: AbortSignal.timeout(5000),
     });
+  } catch { }
+}
+
+async function getFileInfo(fileId: string): Promise<{ file_path: string } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/getFile?file_id=${fileId}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = await res.json() as { ok: boolean; result: { file_path: string } };
+    return data.ok ? data.result : null;
   } catch {
-    // best-effort
+    return null;
   }
+}
+
+async function downloadFileAsBase64(filePath: string): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return null;
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "jpg";
+    const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+    return { base64, mimeType };
+  } catch {
+    return null;
+  }
+}
+
+async function validateIsChart(imageBase64: string, mimeType: string): Promise<boolean> {
+  const apiKey = process.env["OPENROUTER_API_KEY"];
+  if (!apiKey) return true;
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://tradescope-henna.vercel.app",
+        "X-Title": "TradeScope",
+      },
+      body: JSON.stringify({
+        model: "deepseek/deepseek-v4-flash",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+            { type: "text", text: 'Is this image a financial trading chart showing candlesticks, OHLC bars, price action, or technical indicators (MA, RSI, MACD, Bollinger Bands, etc.)? Answer ONLY with "yes" or "no".' },
+          ],
+        }],
+        temperature: 0,
+        max_tokens: 5,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json() as { choices: Array<{ message: { content: string } }> };
+    const answer = data.choices?.[0]?.message?.content?.trim().toLowerCase() ?? "no";
+    return answer.startsWith("yes");
+  } catch {
+    return true;
+  }
+}
+
+function formatAnalysisForBot(result: Awaited<ReturnType<typeof analyzeChartImage>>): string {
+  const scoreBar = "█".repeat(Math.round(result.overallScore / 10)) + "░".repeat(10 - Math.round(result.overallScore / 10));
+  const lines: string[] = [
+    `📊 <b>Chart Analysis Result</b>`,
+    ``,
+    `<b>${result.overallScore}/100</b> — ${result.scoreLabel}`,
+    `<code>${scoreBar}</code>`,
+    ``,
+  ];
+
+  if (result.positives?.length) {
+    lines.push(`✅ <b>Positives</b>`);
+    result.positives.slice(0, 3).forEach(p => lines.push(`• ${p}`));
+    lines.push(``);
+  }
+
+  if (result.warnings?.length) {
+    lines.push(`⚠️ <b>Warnings</b>`);
+    result.warnings.slice(0, 2).forEach(w => lines.push(`• ${w}`));
+    lines.push(``);
+  }
+
+  if (result.negatives?.length) {
+    lines.push(`❌ <b>Weaknesses</b>`);
+    result.negatives.slice(0, 2).forEach(n => lines.push(`• ${n}`));
+    lines.push(``);
+  }
+
+  lines.push(`🎯 <b>Verdict</b>`);
+  lines.push(result.verdict);
+  lines.push(``);
+
+  lines.push(`⏳ <b>Wait For</b>`);
+  lines.push(result.waitFor);
+  lines.push(``);
+
+  if (result.revengeTradeWarning) {
+    lines.push(`🚨 <b>Revenge Trade Warning</b> — Step away. Your last trade was a loss. Protect your capital.`);
+    lines.push(``);
+  }
+
+  if (result.newsAlert) {
+    lines.push(`📰 <b>News Alert</b> — ${result.newsAlert.event} (${result.newsAlert.minutesAway}min): ${result.newsAlert.recommendation}`);
+    lines.push(``);
+  }
+
+  lines.push(`💡 <b>Recommended Actions</b>`);
+  (result.recommendedActions ?? []).slice(0, 3).forEach(a => lines.push(`• ${a}`));
+
+  return lines.join("\n");
 }
 
 export async function buildBriefingMessage(firstName?: string | null): Promise<string> {
@@ -207,7 +336,7 @@ export async function buildBriefingMessage(firstName?: string | null): Promise<s
     `🌅 <b>Daily Trading Briefing</b> — ${dateStr} · ${timeStr} UTC`,
     newsSection,
     `\n💡 <b>Tip of the Day</b>\n<i>"${tip}"</i>`,
-    `\n⚡ <a href="https://t.me/tradescopebot/app">Open TradeScope</a> to analyze your setups`,
+    `\n⚡ <a href="${MINIAPP_URL}">Open TradeScope</a> to analyze your setups`,
   ].join("\n");
 }
 
@@ -273,11 +402,81 @@ export async function handleWebhook(body: any): Promise<void> {
   const firstName: string | undefined = message.from?.first_name;
   const user = message.from;
 
+  // ── Photo handler: chart analysis ─────────────────────────
+  if (message.photo && Array.isArray(message.photo)) {
+    if (awaitingSupport.has(chatId)) {
+      await sendMessageWithKeyboard(chatId, "⚠️ Please type your support message — I can't forward photos to support.", { inline_keyboard: [[{ text: "❌ Cancel", callback_data: "cancel_support" }]] });
+      return;
+    }
+
+    const photos: Array<{ file_id: string; file_size?: number }> = message.photo;
+    const largest = photos[photos.length - 1];
+    if (!largest) return;
+
+    const statusRes = await fetch(`${API_BASE}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: "🔍 <b>Analyzing your chart...</b>\n<i>This takes a few seconds.</i>", parse_mode: "HTML" }),
+    });
+    const statusData = await statusRes.json() as { result?: { message_id: number } };
+    const statusMsgId = statusData.result?.message_id;
+
+    const fileInfo = await getFileInfo(largest.file_id);
+    if (!fileInfo) {
+      if (statusMsgId) await editMessageText(chatId, statusMsgId, "❌ Could not download the image. Please try again.");
+      return;
+    }
+
+    const fileData = await downloadFileAsBase64(fileInfo.file_path);
+    if (!fileData) {
+      if (statusMsgId) await editMessageText(chatId, statusMsgId, "❌ Could not process the image. Please try again.");
+      return;
+    }
+
+    const isChart = await validateIsChart(fileData.base64, fileData.mimeType);
+    if (!isChart) {
+      if (statusMsgId) {
+        await editMessageText(
+          chatId,
+          statusMsgId,
+          `❌ <b>Not a trading chart</b>\n\nI can only analyze trading charts (candlestick or bar charts with price action, indicators, etc.).\n\nPlease send a screenshot of your chart from MT4, MT5, TradingView, or similar platforms.`,
+          mainKeyboard,
+        );
+      }
+      return;
+    }
+
+    try {
+      const newsEvents = await getForexNews().catch(() => []);
+      const upcoming = newsEvents.filter(e => e.minutesAway >= 0 && e.minutesAway <= 240);
+
+      const analysis = await analyzeChartImage({
+        imageBase64: fileData.base64,
+        mimeType: fileData.mimeType,
+        emotionScore: 5,
+        notes: message.caption ?? null,
+        newsEvents: upcoming,
+      });
+
+      const analysisText = formatAnalysisForBot(analysis);
+      if (statusMsgId) {
+        await editMessageText(chatId, statusMsgId, analysisText, mainKeyboard);
+      } else {
+        await sendMessageWithKeyboard(chatId, analysisText, mainKeyboard);
+      }
+    } catch (err) {
+      logger.error({ err }, "Chart analysis failed in bot");
+      if (statusMsgId) {
+        await editMessageText(chatId, statusMsgId, "⚠️ Analysis failed. Please try again in a moment.", mainKeyboard);
+      }
+    }
+    return;
+  }
+
   // ── Support message flow ──────────────────────────────────
   if (!text.startsWith("/") && awaitingSupport.has(chatId) && text) {
     awaitingSupport.delete(chatId);
 
-    const ADMIN_CHANNEL_ID = -1003583233840;
     const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Unknown";
     const userId = user?.id ?? chatId;
     const userLink = user?.username
@@ -290,7 +489,8 @@ export async function handleWebhook(body: any): Promise<void> {
       `🆔 <b>User ID:</b> <code>${userId}</code>\n` +
       `💬 <b>Message:</b>\n${text}\n\n` +
       `━━━━━━━━━━━━━━\n` +
-      `📤 <b>To reply:</b>\n<code>/reply ${userId} your message here</code>`;
+      `📤 <b>To reply, DM the bot directly (${BOT_USERNAME}):</b>\n` +
+      `<code>/reply ${userId} your message here</code>`;
 
     try {
       await sendMessage(String(ADMIN_CHANNEL_ID), adminMsg);
@@ -302,7 +502,7 @@ export async function handleWebhook(body: any): Promise<void> {
     } catch {
       await sendMessageWithKeyboard(
         chatId,
-        `✅ <b>Message received!</b>\n\nThank you for reaching out. Our support team will contact you directly via Telegram as soon as possible.`,
+        `✅ <b>Message received!</b>\n\nThank you for reaching out. Our support team will contact you directly as soon as possible.`,
         mainKeyboard,
       );
     }
@@ -312,6 +512,34 @@ export async function handleWebhook(body: any): Promise<void> {
   // ── Commands ──────────────────────────────────────────────
   if (text.startsWith("/start")) {
     await sendMessageWithKeyboard(chatId, buildWelcomeText(firstName), mainKeyboard);
+
+  } else if (text.startsWith("/reply ")) {
+    // ── Admin reply command: /reply USER_ID message ────────
+    const args = text.slice("/reply ".length).trim();
+    const spaceIdx = args.indexOf(" ");
+    if (spaceIdx === -1) {
+      await sendMessage(chatId, `⚠️ Usage: <code>/reply USER_ID your message here</code>`);
+      return;
+    }
+    const targetId = args.slice(0, spaceIdx).trim();
+    const replyText = args.slice(spaceIdx + 1).trim();
+
+    if (!targetId || !replyText) {
+      await sendMessage(chatId, `⚠️ Usage: <code>/reply USER_ID your message here</code>`);
+      return;
+    }
+
+    const sent = await sendMessageWithKeyboard(
+      targetId,
+      `💬 <b>Reply from TradeScope Support</b>\n\n${replyText}`,
+      mainKeyboard,
+    );
+
+    if (sent) {
+      await sendMessage(chatId, `✅ Reply delivered to user <code>${targetId}</code>.`);
+    } else {
+      await sendMessage(chatId, `❌ Could not deliver reply to <code>${targetId}</code>. The user may not have started the bot.`);
+    }
 
   } else if (text.startsWith("/briefing") || text.startsWith("/morning")) {
     const msg = await buildBriefingMessage(firstName);
@@ -353,6 +581,7 @@ export async function handleWebhook(body: any): Promise<void> {
     await sendMessageWithKeyboard(chatId, [
       "📖 <b>TradeScope Bot Commands</b>",
       "",
+      "📸 Send a chart photo — AI analysis instantly",
       "📅 /briefing — Full morning briefing",
       "📰 /news — Upcoming forex events",
       "💡 /tip — Daily trading tip",
