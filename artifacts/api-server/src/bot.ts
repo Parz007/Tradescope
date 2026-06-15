@@ -1,11 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "./lib/logger";
 
-const MINIAPP_URL = process.env["MINIAPP_URL"] ?? (
-  process.env["REPLIT_DOMAINS"]?.split(",")[0]
-    ? `https://${process.env["REPLIT_DOMAINS"]?.split(",")[0]}`
-    : ""
-);
+const MINIAPP_URL = `https://${process.env["REPLIT_DOMAINS"]?.split(",")[0] ?? ""}`;
 const ADMIN_CHANNEL_ID = -1003583233840;
 
 export function startBot(): void {
@@ -18,39 +14,37 @@ export function startBot(): void {
   const bot = new TelegramBot(token, { polling: true });
   logger.info("Telegram bot started (polling)");
 
+  // Track users currently waiting to submit a support message
   const awaitingSupport = new Set<number>();
 
   const keyboard = {
     inline_keyboard: [
-      [
-        { text: "🚀 Open TradeScope", web_app: { url: MINIAPP_URL } },
-        { text: "📢 Channel", url: "https://t.me/Trade_Scope_Channel" },
-        { text: "💬 Support", callback_data: "support" },
-      ],
+      [{ text: "🚀 Open TradeScope", web_app: { url: MINIAPP_URL } }],
+      [{ text: "📢 Join TradeScope Channel", url: "https://t.me/Trade_Scope_Channel" }],
+      [{ text: "💬 Contact Support", callback_data: "support" }],
     ],
   };
 
   function buildWelcomeText(firstName?: string): string {
-    const greeting = firstName
+    const personalGreeting = firstName
       ? `👋 Welcome to TradeScope Bot, ${firstName}!`
       : `👋 Welcome to TradeScope Bot!`;
 
-    return [
-      `🔭 *Welcome to TradeScope Advanced* 👋`,
-      ``,
-      `Your AI-powered forex trading companion is ready.`,
-      ``,
-      `⚡ *What's inside:*`,
-      `🤖 AI Coach — chart analysis & strategy help`,
-      `🧠 AI Trade Analysis — real-time market insights`,
-      `🏆 Prop Firm Tracker — FTMO challenge manager`,
-      `💼 FTMO Live Accounts — manage funded accounts`,
-      `📐 Risk Calculator — precision position sizing`,
-      ``,
-      `_The market rewards the prepared. Let's get to work._`,
-      ``,
-      greeting,
-    ].join("\n");
+    return `
+🔭 *Welcome to TradeScope Advanced* 👋
+
+Your AI-powered forex trading companion is ready.
+
+⚡ *What's inside:*
+🤖 AI Coach — chart analysis & strategy help
+🧠 AI Trade Analysis — real-time market insights
+🏆 Prop Firm Tracker — FTMO challenge manager
+💼 FTMO Live Accounts — manage funded accounts
+📐 Risk Calculator — precision position sizing
+
+_The market rewards the prepared. Let's get to work._
+
+${personalGreeting}`.trim();
   }
 
   // ── /start ──────────────────────────────────────────────
@@ -137,7 +131,9 @@ export function startBot(): void {
 
     if (query.data === "support") {
       awaitingSupport.add(chatId);
-      bot.answerCallbackQuery(query.id).catch(() => {});
+      bot
+        .answerCallbackQuery(query.id)
+        .catch(() => {});
       bot
         .sendMessage(
           chatId,
@@ -165,13 +161,16 @@ export function startBot(): void {
   bot.on("message", (msg) => {
     const chatId = msg.chat.id;
 
+    // Skip commands
     if (msg.text?.startsWith("/")) return;
 
+    // Handle support messages
     if (awaitingSupport.has(chatId) && msg.text) {
       awaitingSupport.delete(chatId);
 
       const user = msg.from;
       const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Unknown";
+      const username = user?.username ? `@${user.username}` : "no username";
       const userId = user?.id ?? chatId;
 
       const userLink = user?.username
@@ -187,9 +186,11 @@ export function startBot(): void {
         `📤 *To reply, send this to @TradeScope\\_bot:*\n` +
         `\`/reply ${userId} your message here\``;
 
+      // Forward to admin channel
       bot
         .sendMessage(ADMIN_CHANNEL_ID, adminMsg, { parse_mode: "Markdown" })
         .then(() => {
+          // Confirm to user
           bot
             .sendMessage(
               chatId,
