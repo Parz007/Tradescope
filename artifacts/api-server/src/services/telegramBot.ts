@@ -5,7 +5,8 @@ import { usersTable } from "@workspace/db";
 
 const BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
 const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
-const MINIAPP_URL = process.env["MINIAPP_URL"] ?? `https://${process.env["REPLIT_DOMAINS"]?.split(",")[0] ?? ""}`;
+const VERCEL_URL = process.env["VERCEL_URL"] ? `https://${process.env["VERCEL_URL"]}` : null;
+const MINIAPP_URL = process.env["MINIAPP_URL"] ?? VERCEL_URL ?? "https://tradescope-henna.vercel.app";
 const CHANNEL_URL = "https://t.me/Trade_Scope_Channel";
 
 const TIPS = [
@@ -26,7 +27,7 @@ const TIPS = [
   "Never move your stop loss wider once in a trade. That is how accounts die.",
 ];
 
-// Track users waiting to submit a support message (webhook-scoped, resets on redeploy)
+// Track users waiting to submit a support message (resets on redeploy)
 const awaitingSupport = new Set<string>();
 
 function getDailyTip(): string {
@@ -65,6 +66,29 @@ const mainKeyboard = {
   ],
 };
 
+function buildWelcomeText(firstName?: string): string {
+  const personalGreeting = firstName
+    ? `👋 Welcome to TradeScope Bot, ${firstName}!`
+    : `👋 Welcome to TradeScope Bot!`;
+
+  return [
+    `🔭 <b>Welcome to TradeScope Advanced</b> 👋`,
+    ``,
+    `Your AI-powered forex trading companion is ready.`,
+    ``,
+    `⚡ <b>What's inside:</b>`,
+    `🤖 AI Coach — chart analysis &amp; strategy help`,
+    `🧠 AI Trade Analysis — real-time market insights`,
+    `🏆 Prop Firm Tracker — FTMO challenge manager`,
+    `💼 FTMO Live Accounts — manage funded accounts`,
+    `📐 Risk Calculator — precision position sizing`,
+    ``,
+    `<i>The market rewards the prepared. Let's get to work.</i>`,
+    ``,
+    personalGreeting,
+  ].join("\n");
+}
+
 export async function sendMessage(chatId: string, text: string): Promise<boolean> {
   if (!BOT_TOKEN) {
     logger.warn("TELEGRAM_BOT_TOKEN not set — skipping sendMessage");
@@ -98,7 +122,6 @@ async function sendMessageWithKeyboard(
   chatId: string,
   text: string,
   replyMarkup: object,
-  parseMode: "HTML" | "Markdown" = "HTML"
 ): Promise<boolean> {
   if (!BOT_TOKEN) {
     logger.warn("TELEGRAM_BOT_TOKEN not set — skipping sendMessageWithKeyboard");
@@ -111,7 +134,7 @@ async function sendMessageWithKeyboard(
       body: JSON.stringify({
         chat_id: chatId,
         text,
-        parse_mode: parseMode,
+        parse_mode: "HTML",
         reply_markup: replyMarkup,
         disable_web_page_preview: true,
       }),
@@ -141,29 +164,6 @@ async function answerCallbackQuery(callbackQueryId: string, text?: string): Prom
   } catch {
     // best-effort
   }
-}
-
-function buildWelcomeText(firstName?: string): string {
-  const personalGreeting = firstName
-    ? `👋 Welcome to TradeScope Bot, ${firstName}!`
-    : `👋 Welcome to TradeScope Bot!`;
-
-  return [
-    `🔭 <b>Welcome to TradeScope Advanced</b> 👋`,
-    ``,
-    `Your AI-powered forex trading companion is ready.`,
-    ``,
-    `⚡ <b>What's inside:</b>`,
-    `🤖 AI Coach — chart analysis &amp; strategy help`,
-    `🧠 AI Trade Analysis — real-time market insights`,
-    `🏆 Prop Firm Tracker — FTMO challenge manager`,
-    `💼 FTMO Live Accounts — manage funded accounts`,
-    `📐 Risk Calculator — precision position sizing`,
-    ``,
-    `<i>The market rewards the prepared. Let's get to work.</i>`,
-    ``,
-    personalGreeting,
-  ].join("\n");
 }
 
 export async function buildBriefingMessage(firstName?: string | null): Promise<string> {
