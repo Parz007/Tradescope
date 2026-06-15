@@ -1,2 +1,9 @@
-import app from "../artifacts/api-server/dist/vercel.mjs";
-export default app;
+let _app;
+
+module.exports = async (req, res) => {
+  if (!_app) {
+    const mod = await import("../artifacts/api-server/dist/vercel.mjs");
+    _app = mod.default;
+  }
+  _app(req, res);
+};
