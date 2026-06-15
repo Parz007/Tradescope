@@ -1,0 +1,1569 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: TradeScope API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: user
+    description: User management
+  - name: analyze
+    description: Trade analysis
+  - name: history
+    description: Analysis history
+  - name: propfirm
+    description: Prop firm challenge tracker
+  - name: news
+    description: Economic calendar news
+  - name: admin
+    description: Admin panel operations
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /user:
+    post:
+      operationId: upsertUser
+      tags: [user]
+      summary: Create or update user from Telegram data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "200":
+          description: User upserted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /user/{telegramId}:
+    get:
+      operationId: getUser
+      tags: [user]
+      summary: Get user profile and stats
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /user/{telegramId}/stats:
+    get:
+      operationId: getUserStats
+      tags: [user]
+      summary: Get trading DNA and analytics for a user
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User stats and trading DNA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStats"
+
+  /user/{telegramId}/weekly-report:
+    get:
+      operationId: getWeeklyReport
+      tags: [user]
+      summary: Get AI-generated weekly performance report
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Weekly report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReport"
+
+  /analyze:
+    post:
+      operationId: analyzeTrade
+      tags: [analyze]
+      summary: Submit a trade for AI analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeInput"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analysis"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /history/{userId}:
+    get:
+      operationId: listAnalyses
+      tags: [history]
+      summary: Get analysis history for a user (last 50)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: History list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryPage"
+
+  /history/{userId}/filter:
+    post:
+      operationId: filterAnalyses
+      tags: [history]
+      summary: Filter analysis history with criteria
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HistoryFilter"
+      responses:
+        "200":
+          description: Filtered history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryPage"
+
+  /history/{analysisId}/outcome:
+    put:
+      operationId: updateOutcome
+      tags: [history]
+      summary: Update the outcome of an analysis
+      parameters:
+        - name: analysisId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutcomeUpdate"
+      responses:
+        "200":
+          description: Updated analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analysis"
+
+  /history/{analysisId}:
+    get:
+      operationId: getAnalysis
+      tags: [history]
+      summary: Get a single analysis by ID
+      parameters:
+        - name: analysisId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Analysis detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analysis"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /propfirm/challenges/{userId}:
+    get:
+      operationId: getChallenges
+      tags: [propfirm]
+      summary: Get all prop firm challenges for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of challenges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PropChallenge"
+
+  /propfirm/challenge:
+    post:
+      operationId: createChallenge
+      tags: [propfirm]
+      summary: Create a new prop firm challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeInput"
+      responses:
+        "201":
+          description: Challenge created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropChallenge"
+
+  /propfirm/challenge/{id}:
+    get:
+      operationId: getChallenge
+      tags: [propfirm]
+      summary: Get a specific challenge
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Challenge detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropChallenge"
+    delete:
+      operationId: deleteChallenge
+      tags: [propfirm]
+      summary: Delete a challenge
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /propfirm/challenge/{id}/trade:
+    put:
+      operationId: logChallengeTrade
+      tags: [propfirm]
+      summary: Log a trade P&L against a challenge
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeTradeInput"
+      responses:
+        "200":
+          description: Updated challenge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropChallenge"
+
+  /propfirm/challenge/{id}/simulate:
+    post:
+      operationId: simulateChallengeLoss
+      tags: [propfirm]
+      summary: Simulate a hypothetical loss on a challenge
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationInput"
+      responses:
+        "200":
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResult"
+
+  /news:
+    get:
+      operationId: getNews
+      tags: [news]
+      summary: Get upcoming high-impact forex news events (next 24h)
+      responses:
+        "200":
+          description: News events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NewsEvent"
+
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Admin panel login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminToken"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users:
+    get:
+      operationId: adminGetUsers
+      tags: [admin]
+      summary: Get all users (admin)
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Get global platform stats
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  /admin/user/{userId}/tier:
+    put:
+      operationId: adminUpdateTier
+      tags: [admin]
+      summary: Update user subscription tier
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TierUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/analyses/today:
+    get:
+      operationId: adminGetTodayAnalyses
+      tags: [admin]
+      summary: Get all analyses submitted today
+      responses:
+        "200":
+          description: Today analyses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Analysis"
+
+  /notes/{analysisId}:
+    get:
+      operationId: getTradeNote
+      tags: [history]
+      summary: Get trade journal note for an analysis
+      parameters:
+        - name: analysisId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trade note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeNote"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: upsertTradeNote
+      tags: [history]
+      summary: Create or update a trade journal note
+      parameters:
+        - name: analysisId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeNoteInput"
+      responses:
+        "200":
+          description: Trade note saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeNote"
+
+  /alerts/{userId}:
+    get:
+      operationId: getPriceAlerts
+      tags: [user]
+      summary: Get all price alerts for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Price alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PriceAlert"
+
+  /alerts:
+    post:
+      operationId: createPriceAlert
+      tags: [user]
+      summary: Create a price alert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceAlertInput"
+      responses:
+        "201":
+          description: Alert created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceAlert"
+
+  /alerts/{id}:
+    delete:
+      operationId: deletePriceAlert
+      tags: [user]
+      summary: Delete a price alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /analytics/{userId}:
+    get:
+      operationId: getAdvancedAnalytics
+      tags: [history]
+      summary: Get advanced analytics including pair performance, win rate trends, session breakdown
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Advanced analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvancedAnalytics"
+
+  /analytics/{userId}/export:
+    get:
+      operationId: exportTradeHistory
+      tags: [history]
+      summary: Export trade history as CSV
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /risk/calculate:
+    post:
+      operationId: calculateRisk
+      tags: [analyze]
+      summary: Advanced risk and position size calculator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskCalcInput"
+      responses:
+        "200":
+          description: Risk calculation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskCalcResult"
+
+  /risk/scenarios/{userId}:
+    get:
+      operationId: getRiskScenarios
+      tags: [analyze]
+      summary: Get saved risk scenarios for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Risk scenarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RiskScenario"
+    post:
+      operationId: saveRiskScenario
+      tags: [analyze]
+      summary: Save a risk scenario
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskScenarioInput"
+      responses:
+        "201":
+          description: Scenario saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskScenario"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    UserInput:
+      type: object
+      required: [telegramId]
+      properties:
+        telegramId:
+          type: string
+        username:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+
+    User:
+      type: object
+      required: [id, telegramId, currentStreak, longestStreak, subscriptionTier, createdAt]
+      properties:
+        id:
+          type: string
+        telegramId:
+          type: string
+        username:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        accountSize:
+          type: number
+        defaultRisk:
+          type: number
+        currentStreak:
+          type: integer
+        longestStreak:
+          type: integer
+        subscriptionTier:
+          type: string
+        createdAt:
+          type: string
+
+    UserProfile:
+      type: object
+      required: [user, recentAnalyses, quickStats]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        recentAnalyses:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisSummary"
+        quickStats:
+          $ref: "#/components/schemas/QuickStats"
+
+    QuickStats:
+      type: object
+      required: [totalAnalyses, avgScoreThisWeek, bestScoreEver, winRate]
+      properties:
+        totalAnalyses:
+          type: integer
+        avgScoreThisWeek:
+          type: number
+        bestScoreEver:
+          type: integer
+        winRate:
+          type: number
+
+    UserStats:
+      type: object
+      required: [tradingDna, streaks, personalStats, mistakeHeatmap]
+      properties:
+        tradingDna:
+          $ref: "#/components/schemas/TradingDna"
+        streaks:
+          $ref: "#/components/schemas/Streaks"
+        personalStats:
+          $ref: "#/components/schemas/PersonalStats"
+        mistakeHeatmap:
+          type: array
+          items:
+            $ref: "#/components/schemas/HeatmapCell"
+        scoreHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreHistoryPoint"
+
+    TradingDna:
+      type: object
+      properties:
+        strongestPair:
+          type: ["string", "null"]
+        bestTimeframe:
+          type: ["string", "null"]
+        bestSession:
+          type: ["string", "null"]
+        worstHabit:
+          type: ["string", "null"]
+        consistencyGrade:
+          type: ["string", "null"]
+        unlocked:
+          type: boolean
+
+    Streaks:
+      type: object
+      required: [currentStreak, longestStreak, disciplineStreak, goodRRStreak, newsSafeStreak]
+      properties:
+        currentStreak:
+          type: integer
+        longestStreak:
+          type: integer
+        disciplineStreak:
+          type: integer
+        goodRRStreak:
+          type: integer
+        newsSafeStreak:
+          type: integer
+
+    PersonalStats:
+      type: object
+      required: [totalAnalyses, avgScoreAllTime, avgScoreThisWeek, avgScoreLastWeek, mostAnalyzedPair, winRate]
+      properties:
+        totalAnalyses:
+          type: integer
+        avgScoreAllTime:
+          type: number
+        avgScoreThisWeek:
+          type: number
+        avgScoreLastWeek:
+          type: number
+        mostAnalyzedPair:
+          type: ["string", "null"]
+        winRate:
+          type: number
+
+    HeatmapCell:
+      type: object
+      required: [day, hour, avgScore, count]
+      properties:
+        day:
+          type: integer
+        hour:
+          type: integer
+        avgScore:
+          type: number
+        count:
+          type: integer
+
+    ScoreHistoryPoint:
+      type: object
+      required: [date, score]
+      properties:
+        date:
+          type: string
+        score:
+          type: number
+
+    WeeklyReport:
+      type: object
+      required: [summary, strengths, improvements, tip, generatedAt]
+      properties:
+        summary:
+          type: string
+        strengths:
+          type: array
+          items:
+            type: string
+        improvements:
+          type: array
+          items:
+            type: string
+        tip:
+          type: string
+        generatedAt:
+          type: string
+
+    TradeInput:
+      type: object
+      required: [userId, pair, direction, timeframe, entryPrice, stopLoss, takeProfit, lotSize, riskPercent, rrRatio, reasoning, emotionScore]
+      properties:
+        userId:
+          type: string
+        pair:
+          type: string
+        direction:
+          type: string
+          enum: [buy, sell]
+        timeframe:
+          type: string
+          enum: [M5, M15, M30, H1, H4, D1, W1]
+        entryPrice:
+          type: number
+        stopLoss:
+          type: number
+        takeProfit:
+          type: number
+        lotSize:
+          type: number
+        riskPercent:
+          type: number
+        accountSize:
+          type: number
+        rrRatio:
+          type: number
+        reasoning:
+          type: string
+        emotionScore:
+          type: integer
+        htfBias:
+          type: ["string", "null"]
+        keyLevelsNearby:
+          type: ["boolean", "null"]
+        keyLevelsDescription:
+          type: ["string", "null"]
+        screenshotBase64:
+          type: ["string", "null"]
+        propFirmChallengeId:
+          type: ["string", "null"]
+
+    Confluence:
+      type: object
+      required: [trendAlignment, entryTiming, riskManagement, newsSafety, sessionQuality, reasoningQuality]
+      properties:
+        trendAlignment:
+          type: integer
+        entryTiming:
+          type: integer
+        riskManagement:
+          type: integer
+        newsSafety:
+          type: integer
+        sessionQuality:
+          type: integer
+        reasoningQuality:
+          type: integer
+        chartStructure:
+          type: ["integer", "null"]
+
+    NewsAlert:
+      type: object
+      required: [event, minutesAway, recommendation]
+      properties:
+        event:
+          type: string
+        minutesAway:
+          type: integer
+        recommendation:
+          type: string
+
+    Analysis:
+      type: object
+      required: [id, userId, pair, direction, timeframe, entryPrice, stopLoss, takeProfit, lotSize, riskPercent, rrRatio, reasoning, emotionScore, overallScore, scoreLabel, confluenceData, positives, warnings, negatives, verdict, devilsAdvocate, recommendations, waitFor, createdAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        pair:
+          type: string
+        direction:
+          type: string
+        timeframe:
+          type: string
+        entryPrice:
+          type: number
+        stopLoss:
+          type: number
+        takeProfit:
+          type: number
+        lotSize:
+          type: number
+        riskPercent:
+          type: number
+        rrRatio:
+          type: number
+        reasoning:
+          type: string
+        emotionScore:
+          type: integer
+        htfBias:
+          type: ["string", "null"]
+        overallScore:
+          type: integer
+        scoreLabel:
+          type: string
+        confluenceData:
+          $ref: "#/components/schemas/Confluence"
+        positives:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        negatives:
+          type: array
+          items:
+            type: string
+        verdict:
+          type: string
+        devilsAdvocate:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        waitFor:
+          type: string
+        newsAlert:
+          oneOf:
+            - $ref: "#/components/schemas/NewsAlert"
+            - type: "null"
+        propFirmAlert:
+          type: ["string", "null"]
+        revengeTradeWarning:
+          type: boolean
+        lotSizeRecommendation:
+          type: ["number", "null"]
+        screenshotUrl:
+          type: ["string", "null"]
+        outcome:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AnalysisSummary:
+      type: object
+      required: [id, pair, direction, overallScore, scoreLabel, outcome, createdAt]
+      properties:
+        id:
+          type: string
+        pair:
+          type: string
+        direction:
+          type: string
+        timeframe:
+          type: string
+        overallScore:
+          type: integer
+        scoreLabel:
+          type: string
+        verdict:
+          type: string
+        outcome:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    HistoryPage:
+      type: object
+      required: [analyses, total, page, limit]
+      properties:
+        analyses:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisSummary"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    OutcomeUpdate:
+      type: object
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [won, lost, cancelled, pending]
+
+    HistoryFilter:
+      type: object
+      properties:
+        pair:
+          type: ["string", "null"]
+        minScore:
+          type: ["integer", "null"]
+        maxScore:
+          type: ["integer", "null"]
+        outcome:
+          type: ["string", "null"]
+        page:
+          type: ["integer", "null"]
+        limit:
+          type: ["integer", "null"]
+
+    ChallengeInput:
+      type: object
+      required: [userId, firmName, accountSize, maxDrawdown, maxDailyLoss, profitTarget, startDate, phase]
+      properties:
+        userId:
+          type: string
+        firmName:
+          type: string
+        accountSize:
+          type: number
+        maxDrawdown:
+          type: number
+        maxDailyLoss:
+          type: number
+        profitTarget:
+          type: number
+        startDate:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        phase:
+          type: string
+
+    PropChallenge:
+      type: object
+      required: [id, userId, firmName, accountSize, maxDrawdown, maxDailyLoss, profitTarget, startDate, phase, currentProfit, currentDrawdown, todayLoss, status, passingProbability, createdAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        firmName:
+          type: string
+        accountSize:
+          type: number
+        maxDrawdown:
+          type: number
+        maxDailyLoss:
+          type: number
+        profitTarget:
+          type: number
+        startDate:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        phase:
+          type: string
+        currentProfit:
+          type: number
+        currentDrawdown:
+          type: number
+        todayLoss:
+          type: number
+        status:
+          type: string
+        passingProbability:
+          type: number
+        daysRemaining:
+          type: ["integer", "null"]
+        recentTrades:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChallengeTradeLog"
+        createdAt:
+          type: string
+
+    ChallengeTradeLog:
+      type: object
+      required: [id, challengeId, pnl, createdAt]
+      properties:
+        id:
+          type: string
+        challengeId:
+          type: string
+        pnl:
+          type: number
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ChallengeTradeInput:
+      type: object
+      required: [pnl]
+      properties:
+        pnl:
+          type: number
+        notes:
+          type: ["string", "null"]
+
+    SimulationInput:
+      type: object
+      required: [lossAmount]
+      properties:
+        lossAmount:
+          type: number
+
+    SimulationResult:
+      type: object
+      required: [newDrawdown, newDailyLoss, drawdownPercent, dailyLossPercent, wouldBreachDrawdown, wouldBreachDailyLoss, message]
+      properties:
+        newDrawdown:
+          type: number
+        newDailyLoss:
+          type: number
+        drawdownPercent:
+          type: number
+        dailyLossPercent:
+          type: number
+        wouldBreachDrawdown:
+          type: boolean
+        wouldBreachDailyLoss:
+          type: boolean
+        message:
+          type: string
+
+    NewsEvent:
+      type: object
+      required: [id, title, currency, impact, date, time]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        currency:
+          type: string
+        impact:
+          type: string
+          enum: [high, medium, low]
+        date:
+          type: string
+        time:
+          type: string
+        forecast:
+          type: ["string", "null"]
+        previous:
+          type: ["string", "null"]
+        minutesAway:
+          type: integer
+
+    AdminLoginInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    AdminToken:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    AdminUser:
+      type: object
+      required: [id, telegramId, subscriptionTier, totalAnalyses, createdAt]
+      properties:
+        id:
+          type: string
+        telegramId:
+          type: string
+        username:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        subscriptionTier:
+          type: string
+        totalAnalyses:
+          type: integer
+        createdAt:
+          type: string
+
+    AdminStats:
+      type: object
+      required: [totalUsers, analysesToday, totalAnalyses, freeUsers, proUsers, eliteUsers]
+      properties:
+        totalUsers:
+          type: integer
+        analysesToday:
+          type: integer
+        totalAnalyses:
+          type: integer
+        freeUsers:
+          type: integer
+        proUsers:
+          type: integer
+        eliteUsers:
+          type: integer
+
+    TierUpdate:
+      type: object
+      required: [tier]
+      properties:
+        tier:
+          type: string
+          enum: [free, pro, elite]
+
+    TradeNote:
+      type: object
+      required: [id, analysisId, userId, note, createdAt]
+      properties:
+        id:
+          type: string
+        analysisId:
+          type: string
+        userId:
+          type: string
+        note:
+          type: string
+        mood:
+          type: ["string", "null"]
+        lessonsLearned:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    TradeNoteInput:
+      type: object
+      required: [userId, note]
+      properties:
+        userId:
+          type: string
+        note:
+          type: string
+        mood:
+          type: ["string", "null"]
+        lessonsLearned:
+          type: ["string", "null"]
+
+    PriceAlert:
+      type: object
+      required: [id, userId, pair, targetPrice, direction, condition, isActive, createdAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        pair:
+          type: string
+        targetPrice:
+          type: number
+        direction:
+          type: string
+        condition:
+          type: string
+        note:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        triggeredAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    PriceAlertInput:
+      type: object
+      required: [userId, pair, targetPrice, direction, condition]
+      properties:
+        userId:
+          type: string
+        pair:
+          type: string
+        targetPrice:
+          type: number
+        direction:
+          type: string
+        condition:
+          type: string
+          enum: [above, below]
+        note:
+          type: ["string", "null"]
+
+    PairPerformance:
+      type: object
+      required: [pair, avgScore, winRate, totalTrades, wonTrades, lostTrades]
+      properties:
+        pair:
+          type: string
+        avgScore:
+          type: number
+        winRate:
+          type: number
+        totalTrades:
+          type: integer
+        wonTrades:
+          type: integer
+        lostTrades:
+          type: integer
+
+    ScoreTrend:
+      type: object
+      required: [date, avgScore, count]
+      properties:
+        date:
+          type: string
+        avgScore:
+          type: number
+        count:
+          type: integer
+
+    SessionBreakdown:
+      type: object
+      required: [session, avgScore, count, winRate]
+      properties:
+        session:
+          type: string
+        avgScore:
+          type: number
+        count:
+          type: integer
+        winRate:
+          type: number
+
+    DirectionBreakdown:
+      type: object
+      required: [direction, count, avgScore, winRate]
+      properties:
+        direction:
+          type: string
+        count:
+          type: integer
+        avgScore:
+          type: number
+        winRate:
+          type: number
+
+    AdvancedAnalytics:
+      type: object
+      required: [pairPerformance, scoreTrend, sessionBreakdown, directionBreakdown, emotionImpact, topMistakes]
+      properties:
+        pairPerformance:
+          type: array
+          items:
+            $ref: "#/components/schemas/PairPerformance"
+        scoreTrend:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreTrend"
+        sessionBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionBreakdown"
+        directionBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/DirectionBreakdown"
+        emotionImpact:
+          type: array
+          items:
+            type: object
+        topMistakes:
+          type: array
+          items:
+            type: string
+        totalPnlPips:
+          type: ["number", "null"]
+
+    RiskCalcInput:
+      type: object
+      required: [accountSize, riskPercent, pair, entryPrice, stopLoss, takeProfit]
+      properties:
+        accountSize:
+          type: number
+        riskPercent:
+          type: number
+        pair:
+          type: string
+        entryPrice:
+          type: number
+        stopLoss:
+          type: number
+        takeProfit:
+          type: number
+        leverage:
+          type: ["number", "null"]
+
+    RiskCalcResult:
+      type: object
+      required: [riskDollars, rewardDollars, rrRatio, lotSize, stopPips, takeProfitPips, pipValue, marginRequired, maxLossScenarios]
+      properties:
+        riskDollars:
+          type: number
+        rewardDollars:
+          type: number
+        rrRatio:
+          type: number
+        lotSize:
+          type: number
+        stopPips:
+          type: number
+        takeProfitPips:
+          type: number
+        pipValue:
+          type: number
+        marginRequired:
+          type: ["number", "null"]
+        breakEvenPips:
+          type: number
+        maxLossScenarios:
+          type: array
+          items:
+            type: object
+
+    RiskScenario:
+      type: object
+      required: [id, userId, name, accountSize, riskPercent, pair, entryPrice, stopLoss, takeProfit, createdAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        accountSize:
+          type: number
+        riskPercent:
+          type: number
+        pair:
+          type: string
+        entryPrice:
+          type: number
+        stopLoss:
+          type: number
+        takeProfit:
+          type: number
+        lotSize:
+          type: ["number", "null"]
+        pipValue:
+          type: ["number", "null"]
+        riskDollars:
+          type: ["number", "null"]
+        rewardDollars:
+          type: ["number", "null"]
+        rrRatio:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+
+    RiskScenarioInput:
+      type: object
+      required: [name, accountSize, riskPercent, pair, entryPrice, stopLoss, takeProfit]
+      properties:
+        name:
+          type: string
+        accountSize:
+          type: number
+        riskPercent:
+          type: number
+        pair:
+          type: string
+        entryPrice:
+          type: number
+        stopLoss:
+          type: number
+        takeProfit:
+          type: number
+        lotSize:
+          type: ["number", "null"]
+        pipValue:
+          type: ["number", "null"]
+        riskDollars:
+          type: ["number", "null"]
+        rewardDollars:
+          type: ["number", "null"]
+        rrRatio:
+          type: ["number", "null"]
