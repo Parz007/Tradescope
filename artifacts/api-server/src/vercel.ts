@@ -1,8 +1,9 @@
 import { setBotWebhook } from "./services/telegramBot";
 export { default } from "./app";
 
-const miniappUrl = process.env["MINIAPP_URL"];
-if (process.env["TELEGRAM_BOT_TOKEN"] && miniappUrl) {
-  const webhookUrl = `${miniappUrl.replace(/\/$/, "")}/api/bot/webhook`;
+const VERCEL_PRODUCTION_URL = "https://tradescope-henna.vercel.app";
+
+if (process.env["TELEGRAM_BOT_TOKEN"]) {
+  const webhookUrl = `${VERCEL_PRODUCTION_URL}/api/bot/webhook`;
   setBotWebhook(webhookUrl).catch(() => {});
 }
