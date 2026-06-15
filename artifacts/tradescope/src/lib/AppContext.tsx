@@ -16,6 +16,16 @@ const AppContext = createContext<AppContextType>({
 
 export const useAppContext = () => useContext(AppContext);
 
+function getOrCreateDemoId(): string {
+  const KEY = "tradescope_demo_uid";
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = `demo_${crypto.randomUUID()}`;
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [telegramUser, setTelegramUser] = useState<any>(null);
@@ -25,19 +35,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const initApp = async () => {
       let tUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
-      
+
       if (!tUser) {
-        // demo data
+        const demoId = getOrCreateDemoId();
         tUser = {
-          id: "123456789",
+          id: demoId,
           first_name: "Trader",
           last_name: "",
           username: "trader",
         };
       }
-      
+
       setTelegramUser(tUser);
-      
+
       try {
         const result = await upsertUser.mutateAsync({
           data: {
@@ -54,7 +64,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoading(false);
       }
     };
-    
+
     initApp();
   }, []);
 
