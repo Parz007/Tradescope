@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomUUID } from "crypto";
-import { eq, desc, avg, max, count, gte } from "drizzle-orm";
+import { eq, desc, avg, max, count, gte, and } from "drizzle-orm";
 import { db, usersTable, analysesTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -80,12 +80,12 @@ router.get("/user/:telegramId", async (req, res): Promise<void> => {
   const weeklyStats = await db
     .select({ avgScore: avg(analysesTable.overallScore) })
     .from(analysesTable)
-    .where(eq(analysesTable.userId, user.id) && gte(analysesTable.createdAt, oneWeekAgo));
+    .where(and(eq(analysesTable.userId, user.id), gte(analysesTable.createdAt, oneWeekAgo)));
 
   const totalCount = await db.select({ cnt: count() }).from(analysesTable).where(eq(analysesTable.userId, user.id));
 
-  const wonCount = await db.select({ cnt: count() }).from(analysesTable).where(eq(analysesTable.userId, user.id) && eq(analysesTable.outcome, "won") as any);
-  const lostCount = await db.select({ cnt: count() }).from(analysesTable).where(eq(analysesTable.userId, user.id) && eq(analysesTable.outcome, "lost") as any);
+  const wonCount = await db.select({ cnt: count() }).from(analysesTable).where(and(eq(analysesTable.userId, user.id), eq(analysesTable.outcome, "won")));
+  const lostCount = await db.select({ cnt: count() }).from(analysesTable).where(and(eq(analysesTable.userId, user.id), eq(analysesTable.outcome, "lost")));
 
   const total = totalCount[0]?.cnt ?? 0;
   const won = wonCount[0]?.cnt ?? 0;
@@ -133,12 +133,10 @@ router.get("/user/:telegramId/stats", async (req, res): Promise<void> => {
   const won = allAnalyses.filter((a) => a.outcome === "won").length;
   const lost = allAnalyses.filter((a) => a.outcome === "lost").length;
 
-  // Pair frequency
   const pairCounts: Record<string, number> = {};
   for (const a of allAnalyses) pairCounts[a.pair] = (pairCounts[a.pair] ?? 0) + 1;
   const strongestPair = unlocked ? (Object.entries(pairCounts).sort(([,a],[,b]) => b - a)[0]?.[0] ?? null) : null;
 
-  // Best timeframe (highest avg score)
   const tfScores: Record<string, number[]> = {};
   for (const a of allAnalyses) {
     if (!tfScores[a.timeframe]) tfScores[a.timeframe] = [];
@@ -146,26 +144,23 @@ router.get("/user/:telegramId/stats", async (req, res): Promise<void> => {
   }
   const bestTimeframe = unlocked ? (Object.entries(tfScores).sort(([,a],[,b]) => avgScore(b as any) - avgScore(a as any))[0]?.[0] ?? null) : null;
 
-  // Score history (last 14 days)
   const scoreHistory: Array<{ date: string; score: number }> = [];
   const last14 = [...allAnalyses].slice(0, 14).reverse();
   for (const a of last14) {
     scoreHistory.push({ date: new Date(a.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }), score: a.overallScore });
   }
 
-  // Consistency grade
   let grade: string | null = null;
   if (unlocked) {
     const avg = avgScore(allAnalyses);
     grade = avg >= 80 ? "A" : avg >= 70 ? "B" : avg >= 60 ? "C" : avg >= 50 ? "D" : "F";
   }
 
-  // Heatmap (7 days x 4 time blocks: 0=morning,1=noon,2=afternoon,3=evening)
   const heatmap: Array<{ day: number; hour: number; avgScore: number; count: number }> = [];
   const heatData: Record<string, number[]> = {};
   for (const a of allAnalyses) {
     const d = new Date(a.createdAt);
-    const day = (d.getDay() + 6) % 7; // 0=Mon
+    const day = (d.getDay() + 6) % 7;
     const h = d.getHours();
     const block = h < 9 ? 0 : h < 13 ? 1 : h < 17 ? 2 : 3;
     const key = `${day}-${block}`;
@@ -222,7 +217,7 @@ router.get("/user/:telegramId/weekly-report", async (req, res): Promise<void> =>
   const weekAnalyses = await db
     .select()
     .from(analysesTable)
-    .where(eq(analysesTable.userId, user.id) && gte(analysesTable.createdAt, oneWeekAgo) as any)
+    .where(and(eq(analysesTable.userId, user.id), gte(analysesTable.createdAt, oneWeekAgo)))
     .orderBy(desc(analysesTable.createdAt));
 
   const avg = weekAnalyses.length > 0 ? weekAnalyses.reduce((s, a) => s + a.overallScore, 0) / weekAnalyses.length : 0;
