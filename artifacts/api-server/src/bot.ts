@@ -1,7 +1,9 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "./lib/logger";
 
-const MINIAPP_URL = `https://${process.env["REPLIT_DOMAINS"]?.split(",")[0] ?? ""}`;
+const MINIAPP_URL = process.env["MINIAPP_URL"] ?? process.env["REPLIT_DOMAINS"]?.split(",")[0]
+  ? `https://${process.env["REPLIT_DOMAINS"]?.split(",")[0]}`
+  : "";
 const ADMIN_CHANNEL_ID = -1003583233840;
 
 export function startBot(): void {
@@ -182,7 +184,6 @@ _The market rewards the prepared. Let's get to work._
       bot
         .sendMessage(ADMIN_CHANNEL_ID, adminMsg, { parse_mode: "Markdown" })
         .then(() => {
-          // Confirm to user
           bot
             .sendMessage(
               chatId,
