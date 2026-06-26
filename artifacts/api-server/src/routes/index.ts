@@ -13,6 +13,7 @@ import alertsRouter from "./alerts";
 import analyticsRouter from "./analytics";
 import riskRouter from "./risk";
 import chatRouter from "./chat";
+import robotRentalRouter from "./robot-rental";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(alertsRouter);
 router.use(analyticsRouter);
 router.use(riskRouter);
 router.use(chatRouter);
+router.use(robotRentalRouter);
 
 export default router;
