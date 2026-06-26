@@ -20,7 +20,6 @@ export function startBot(): void {
   const keyboard = {
     inline_keyboard: [
       [{ text: "🚀 Open TradeScope", web_app: { url: MINIAPP_URL } }],
-      [{ text: "📢 Join TradeScope Channel", url: "https://t.me/Trade_Scope_Channel" }],
       [{ text: "💬 Contact Support", callback_data: "support" }],
     ],
   };
