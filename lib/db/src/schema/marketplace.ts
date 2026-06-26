@@ -32,3 +32,18 @@ export const ftmoOrdersTable = pgTable("ftmo_orders", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
 });
+
+export const robotRentalsTable = pgTable("robot_rentals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  buyerUserId: text("buyer_user_id").notNull(),
+  buyerUsername: text("buyer_username"),
+  buyerContact: text("buyer_contact"),
+  cryptoType: text("crypto_type").notNull(),
+  amountUsd: integer("amount_usd").notNull().default(15),
+  durationDays: integer("duration_days").notNull().default(14),
+  txHash: text("tx_hash"),
+  status: text("status").notNull().default("pending"),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+});
