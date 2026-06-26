@@ -23,6 +23,7 @@ import {
   Trophy,
   ChevronRight,
   BrainCircuit,
+  Bot,
 } from "lucide-react";
 
 const QUOTES = [
@@ -51,13 +52,11 @@ function getPairFlag(pair: string) {
 
 function getSession(): { name: string; emoji: string; color: string } {
   const now = new Date();
-  const day = now.getUTCDay(); // 0=Sun, 6=Sat
+  const day = now.getUTCDay();
   const hour = now.getUTCHours();
 
-  // Forex market closed: all Sunday, Saturday after 21:00 UTC, and before Sunday 21:00 UTC
   const isSunday = day === 0;
   const isSaturday = day === 6;
-  // Market opens Sunday 21:00 UTC, closes Saturday 21:00 UTC
   if (isSunday && hour < 21) return { name: "Markets Closed · Weekend", emoji: "🔴", color: "#EF4444" };
   if (isSaturday && hour >= 21) return { name: "Markets Closed · Weekend", emoji: "🔴", color: "#EF4444" };
   if (isSaturday) return { name: "Markets Closed · Weekend", emoji: "🔴", color: "#EF4444" };
@@ -254,6 +253,14 @@ export default function Home() {
       <div>
         <p className="text-[#64748B] text-xs font-medium uppercase tracking-wider mb-2">Quick Tools</p>
         <div className="grid grid-cols-2 gap-2">
+          <QuickTool
+            icon={Bot}
+            label="Rent EA Robot"
+            sub="Tradescope EA · $15 / 2 weeks"
+            color="#6366F1"
+            href="/robot-rental"
+            onClick={() => setLocation("/robot-rental")}
+          />
           <QuickTool
             icon={ShoppingBag}
             label="FTMO Accounts"
