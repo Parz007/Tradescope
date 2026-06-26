@@ -7,7 +7,6 @@ import { analyzeChartImage } from "./openrouter";
 const BOT_TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
 const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const MINIAPP_URL = "https://tradescope-henna.vercel.app";
-const CHANNEL_URL = "https://t.me/Trade_Scope_Channel";
 const ADMIN_CHANNEL_ID = -1003583233840;
 const BOT_USERNAME = "@TradeScopeApp_bot";
 
@@ -62,7 +61,6 @@ function getCurrencyFlag(currency: string): string {
 const mainKeyboard = {
   inline_keyboard: [
     [{ text: "🚀 Open TradeScope", web_app: { url: MINIAPP_URL } }],
-    [{ text: "📢 Join TradeScope Channel", url: CHANNEL_URL }],
     [{ text: "💬 Contact Support", callback_data: "support" }],
   ],
 };
