@@ -17,6 +17,7 @@ import Analytics from "@/pages/Analytics";
 import PriceAlerts from "@/pages/PriceAlerts";
 import RiskCalculator from "@/pages/RiskCalculator";
 import AICoach from "@/pages/AICoach";
+import RobotRental from "@/pages/RobotRental";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -43,6 +44,7 @@ function Router() {
         <Route path="/alerts" component={PriceAlerts} />
         <Route path="/risk" component={RiskCalculator} />
         <Route path="/coach" component={AICoach} />
+        <Route path="/robot-rental" component={RobotRental} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
